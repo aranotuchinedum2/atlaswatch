@@ -64,7 +64,9 @@ export default function App() {
           lastFetch={lastFetch}
         />
 
-        {cacheInfo && <CacheBadge info={cacheInfo} />}
+        {(cacheInfo || data?._demo) && (
+          <CacheBadge info={cacheInfo} isDemo={data?._demo} />
+    )}
 
         {error && (
           <div className="error-banner">
