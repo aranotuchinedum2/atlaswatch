@@ -29,20 +29,24 @@ def _sync_scrape(query: str, count: int) -> List[Dict[str, Any]]:
 
     run_input = {
         "searchTerms": [query],
+        "sort": "Latest",
         "maxItems": count,
-        "queryType": "Latest",
-        "lang": "en",
+        "start": None,
+        "end": None,
+        "twitterHandles": None,
+        "startUrls": None,
+        "includeSearchTerms": None,
     }
 
     logger.info(f"Starting Apify scrape for '{query}' (max {count})")
 
     try:
-        run = client.actor("apidojo/tweet-scraper").call(
+        run = client.actor("nfp1fpt5gUlBWPcor").call(
             run_input=run_input,
             timeout_secs=120,
         )
 
-        items = client.dataset(run["defaultDatasetId"]).list_items().items
+        items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
 
         if not items:
             logger.warning("Apify returned 0 tweets")
@@ -50,41 +54,48 @@ def _sync_scrape(query: str, count: int) -> List[Dict[str, Any]]:
 
         result = []
         for item in items:
-            # apidojo/tweet-scraper field names
+            # Try all common field names this actor might return
             text = (
                 item.get("full_text")
                 or item.get("text")
                 or item.get("tweetText")
+                or item.get("content")
                 or ""
             ).strip()
 
             if not text:
                 continue
 
-            author = item.get("author") or item.get("user") or {}
-            if isinstance(author, str):
-                author = {}
+            user = item.get("user") or item.get("author") or {}
+            if isinstance(user, str):
+                user = {}
 
             result.append({
-                "id": str(item.get("id") or item.get("id_str") or len(result)),
+                "id": str(item.get("id_str") or item.get("id") or item.get("tweetId") or len(result)),
                 "text": text,
                 "user": (
-                    author.get("name")
-                    or author.get("userName")
-                    or item.get("userName")
+                    user.get("name")
+                    or user.get("displayName")
+                    or item.get("displayName")
+                    or item.get("authorName")
                     or "Twitter User"
                 ),
                 "username": (
-                    author.get("screen_name")
-                    or author.get("userName")
-                    or item.get("author_id")
+                    user.get("screen_name")
+                    or user.get("userName")
+                    or item.get("userName")
+                    or item.get("authorUsername")
                     or "user"
                 ),
                 "date": str(item.get("created_at") or item.get("createdAt") or ""),
-                "likes": _safe_int(item.get("likeCount") or item.get("favorite_count") or 0),
-                "retweets": _safe_int(item.get("retweetCount") or item.get("retweet_count") or 0),
-                "replies": _safe_int(item.get("replyCount") or item.get("reply_count") or 0),
-                "link": item.get("url") or item.get("tweetUrl") or "",
+                "likes": _safe_int(item.get("favorite_count") or item.get("likeCount") or 0),
+                "retweets": _safe_int(item.get("retweet_count") or item.get("retweetCount") or 0),
+                "replies": _safe_int(item.get("reply_count") or item.get("replyCount") or 0),
+                "link": (
+                    item.get("url")
+                    or item.get("tweetUrl")
+                    or f"https://twitter.com/i/web/status/{item.get('id_str', '')}"
+                ),
             })
 
         logger.info(f"Apify scraped {len(result)} tweets for '{query}'")
