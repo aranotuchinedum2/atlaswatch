@@ -32,21 +32,6 @@ def _sync_scrape(query: str, count: int) -> List[Dict[str, Any]]:
         "maxItems": count,
         "sort": "Latest",
         "tweetLanguage": "en",
-        "onlyVerifiedUsers": None,
-        "onlyTwitterBlue": None,
-        "onlyImage": None,
-        "onlyVideo": None,
-        "onlyQuote": None,
-        "author": None,
-        "inReplyTo": None,
-        "mentioning": None,
-        "minimumRetweets": None,
-        "minimumFavorites": None,
-        "minimumReplies": None,
-        "start": None,
-        "end": None,
-        "includeSearchTerms": None,
-        "customMapFunction": "(object) => { return {...object} }",
     }
 
     logger.info(f"Starting Apify scrape for '{query}' (max {count})")
