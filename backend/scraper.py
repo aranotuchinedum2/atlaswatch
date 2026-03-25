@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import os
+import random
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -10,9 +11,8 @@ APIFY_TOKEN = os.getenv("APIFY_API_TOKEN", "")
 
 
 async def scrape_tweets(query: str, count: int = 60) -> List[Dict[str, Any]]:
-    """Scrape real tweets via Apify's Twitter scraper actor."""
     if not APIFY_TOKEN:
-        logger.error("APIFY_API_TOKEN not set — cannot scrape")
+        logger.error("APIFY_API_TOKEN not set")
         return []
     try:
         loop = asyncio.get_event_loop()
@@ -29,19 +29,30 @@ def _sync_scrape(query: str, count: int) -> List[Dict[str, Any]]:
 
     run_input = {
         "searchTerms": [query],
-        "sort": "Latest",
         "maxItems": count,
+        "sort": "Latest",
+        "tweetLanguage": "en",
+        "onlyVerifiedUsers": None,
+        "onlyTwitterBlue": None,
+        "onlyImage": None,
+        "onlyVideo": None,
+        "onlyQuote": None,
+        "author": None,
+        "inReplyTo": None,
+        "mentioning": None,
+        "minimumRetweets": None,
+        "minimumFavorites": None,
+        "minimumReplies": None,
         "start": None,
         "end": None,
-        "twitterHandles": None,
-        "startUrls": None,
         "includeSearchTerms": None,
+        "customMapFunction": "(object) => { return {...object} }",
     }
 
     logger.info(f"Starting Apify scrape for '{query}' (max {count})")
 
     try:
-        run = client.actor("nfp1fpt5gUlBWPcor").call(
+        run = client.actor("61RPP7dywgiy0JPD0").call(
             run_input=run_input,
             timeout_secs=120,
         )
@@ -54,7 +65,6 @@ def _sync_scrape(query: str, count: int) -> List[Dict[str, Any]]:
 
         result = []
         for item in items:
-            # Try all common field names this actor might return
             text = (
                 item.get("full_text")
                 or item.get("text")
@@ -66,35 +76,40 @@ def _sync_scrape(query: str, count: int) -> List[Dict[str, Any]]:
             if not text:
                 continue
 
-            user = item.get("user") or item.get("author") or {}
-            if isinstance(user, str):
-                user = {}
+            author = item.get("author") or item.get("user") or {}
+            if isinstance(author, str):
+                author = {}
 
             result.append({
-                "id": str(item.get("id_str") or item.get("id") or item.get("tweetId") or len(result)),
+                "id": str(
+                    item.get("id")
+                    or item.get("id_str")
+                    or item.get("tweetId")
+                    or len(result)
+                ),
                 "text": text,
                 "user": (
-                    user.get("name")
-                    or user.get("displayName")
-                    or item.get("displayName")
+                    author.get("name")
+                    or author.get("displayName")
                     or item.get("authorName")
+                    or item.get("displayName")
                     or "Twitter User"
                 ),
                 "username": (
-                    user.get("screen_name")
-                    or user.get("userName")
-                    or item.get("userName")
+                    author.get("userName")
+                    or author.get("screen_name")
                     or item.get("authorUsername")
+                    or item.get("userName")
                     or "user"
                 ),
-                "date": str(item.get("created_at") or item.get("createdAt") or ""),
-                "likes": _safe_int(item.get("favorite_count") or item.get("likeCount") or 0),
-                "retweets": _safe_int(item.get("retweet_count") or item.get("retweetCount") or 0),
-                "replies": _safe_int(item.get("reply_count") or item.get("replyCount") or 0),
+                "date": str(item.get("createdAt") or item.get("created_at") or ""),
+                "likes": _safe_int(item.get("likeCount") or item.get("favorite_count") or 0),
+                "retweets": _safe_int(item.get("retweetCount") or item.get("retweet_count") or 0),
+                "replies": _safe_int(item.get("replyCount") or item.get("reply_count") or 0),
                 "link": (
                     item.get("url")
                     or item.get("tweetUrl")
-                    or f"https://twitter.com/i/web/status/{item.get('id_str', '')}"
+                    or f"https://twitter.com/i/web/status/{item.get('id', '')}"
                 ),
             })
 
@@ -135,8 +150,6 @@ DEMO_POOL = [
 
 
 def get_demo_tweets(query: str) -> List[Dict[str, Any]]:
-    """Return demo data when Apify is unavailable."""
-    import random
     pool = DEMO_POOL[:]
     random.shuffle(pool)
     return [
